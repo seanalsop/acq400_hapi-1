@@ -1,8 +1,45 @@
 #!/usr/bin/env python
 
-""" acq2106_hts
-    control High Throughput Streaming on local SFP/AFHBA
-    replaces AFHBA404/scripts/hts-test-harness-*
+""" acq2106_hts High Throughput Streaming
+
+    - data on local SFP/AFHBA
+    - control on Ethernet
+    - replaces AFHBA404/scripts/hts-test-harness-*
+
+example usage::
+
+	./acq2106_hts.py --trg=notouch --secs=3600 acq2106_061
+	    # act on acq2106_061, run for 3600s
+
+
+usage::
+
+     acq2106_hts.py [-h] [--pre PRE] [--clk CLK] [--trg TRG] [--sim SIM]
+                      [--trace TRACE] [--post POST] [--secs SECS]
+                      [--spad SPAD] [--commsA COMMSA] [--commsB COMMSB]
+                      [--decimate DEC]
+                      uut [uut ...]
+
+configure acq2106 High Throughput Stream
+
+positional arguments:
+  uut              uut
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --pre PRE        pre-trigger samples
+  --clk CLK        int|ext|zclk|xclk,fpclk,SR,[FIN]
+  --trg TRG        int|ext,rising|falling
+  --sim SIM        s1[,s2,s3..] list of sites to run in simulate mode
+  --trace TRACE    1 : enable command tracing
+  --post POST      capture samples [default:0 inifinity]
+  --secs SECS      capture seconds [default:0 inifinity]
+  --spad SPAD      scratchpad, eg 1,16,0
+  --commsA COMMSA  custom list of sites for commsA
+  --commsB COMMSB  custom list of sites for commsB
+  --hexdump        hexdump command string
+  --decimate DECIMATE  decimate arm data path
+
 """
 
 import sys
@@ -10,12 +47,31 @@ import acq400_hapi
 from acq400_hapi import intSI as intSI
 import argparse
 import time
+import os
 
 
 def config_shot(uut, args):
-    acq400_hapi.Acq400UI.exec_args(uut, args) 
+    acq400_hapi.Acq400UI.exec_args(uut, args)
     uut.s0.run0 = uut.s0.sites
+    if args.decimate != None:
+        uut.s0.decimate = args.decimate
 
+def hexdump_string(uut, chan, sites, spad):
+    nspad = 0 if spad == None else int(spad.split(',')[1])
+    print("hexdump_string {} {} {}".format(chan, sites, nspad))
+    dumpstr = ("hexdump -ve '\"%10_ad,\" ")
+    for svc in ( uut.svc['s{}'.format(s)] for s in sites.split(',')):
+        d32 = svc.data32 == '1'
+	fmt = '" " {}/{} "%0{}x," '.format(svc.NCHAN, 4 if d32 else 2, 8 if d32 else 4)
+	dumpstr += fmt
+    if nspad:
+        fmt = '{}/4 "%08x," '.format(nspad)
+        dumpstr += fmt
+    dumpstr += '"\\n"\''
+    print(dumpstr)
+    with open("hexdump{}".format(chan), "w") as fp:
+        fp.write("{} $*\n".format(dumpstr))
+    os.chmod("hexdump{}".format(chan), 0777)
 
 def init_comms(uut, args):
     if args.spad != None:
@@ -25,10 +81,16 @@ def init_comms(uut, args):
             uut.s0.sr("spad{}={}".format(sp, sp*8))
     if args.commsA != "none":
         uut.cA.spad = 0 if args.spad == None else 1
-        uut.cA.aggregator = "sites=%s" % (uut.s0.sites if args.commsA == 'all' else args.commsA)
+        csites = uut.s0.sites if args.commsA == 'all' else args.commsA
+        uut.cA.aggregator = "sites=%s" % (csites)
+        if args.hexdump:
+            hexdump_string(uut, "A", csites, args.spad)
     if args.commsB != "none":
         uut.cB.spad = 0 if args.spad == None else 1
-        uut.cB.aggregator = "sites=%s" % (uut.s0.sites if args.commsB == 'all' else args.commsB)
+        csites = uut.s0.sites if args.commsB == 'all' else args.commsB
+        uut.cB.aggregator = "sites=%s" % (csites)
+        if args.hexdump:
+            hexdump_string(uut, "B", csites, args.spad)
 
 def init_work(uut, args):
     print "init_work"
@@ -67,6 +129,8 @@ def run_main():
     parser.add_argument('--spad', default=None, help="scratchpad, eg 1,16,0")
     parser.add_argument('--commsA', default="all", help='custom list of sites for commsA')
     parser.add_argument('--commsB', default="none", help='custom list of sites for commsB')
+    parser.add_argument('--hexdump', default=0, help="generate hexdump format string")
+    parser.add_argument('--decimate', default=None, help='decimate arm data path')
     parser.add_argument('uut', nargs='+', help="uut ")
     run_shot(parser.parse_args())
 
