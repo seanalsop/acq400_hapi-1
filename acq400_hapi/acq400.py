@@ -27,7 +27,7 @@ import os
 import errno
 import signal
 import sys
-import netclient
+from . import netclient
 import numpy as np
 import socket
 import timeit
@@ -170,7 +170,7 @@ class Statusmonitor:
                         self.armed.set()
                         self.stopped.clear()
                     if self.status[SF.STATE] == 0 and status1[SF.STATE] > 1:
-                        print("ERROR: %s skipped ARM %d -> %d" % (self.uut, self.status[0], status1[0]))                        
+                        print("ERROR: %s skipped ARM %d -> %d" % (self.uut, self.status[0], status1[0]))
                         self.quit_requested = True
                         os.kill(self.main_pid, signal.SIGINT)
                         sys.exit(1)                                            
@@ -222,7 +222,7 @@ class Statusmonitor:
 
 class NullFilter:
     def __call__ (self, st):
-        print st
+        print(st)
 
 null_filter = NullFilter()
 
@@ -303,8 +303,9 @@ class Acq400:
         self.save_data = None
         self.svc = {}
         self.modules = {}
-        self.__mod_count = 0    
-        self.cal_eslo = [0, ]
+        self.__mod_count = 0   
+        # channel index from 1,..
+        self.cal_eslo = [0, ]  
         self.cal_eoff = [0, ]
 
         s0 = self.svc["s0"] = netclient.Siteclient(self.uut, AcqPorts.SITE0)
@@ -360,7 +361,7 @@ class Acq400:
             self.cal_eoff.extend(m.AI_CAL_EOFF.split(' ')[3:])
 
     def scale_raw(self, raw, volts=False):
-        for (sx, m) in self.modules.items():
+        for (sx, m) in list(self.modules.items()):
             if m.MODEL.startswith("ACQ43"):
                 rshift = 8
             elif m.data32 == '1':
@@ -422,7 +423,7 @@ class Acq400:
 
 
         if channels == ():
-            channels = range(1, self.nchan()+1)
+            channels = list(range(1, self.nchan()+1))
         elif type(channels) == int:
             channels = (channels,)
 
@@ -438,7 +439,7 @@ class Acq400:
 
             if self.trace:
                 tt = timeit.default_timer() - start
-                print("%s CH%02d complete.. %.3f s %.2f MB/s" % 
+                print("%s CH%02d complete.. %.3f s %.2f MB/s" %
                       (self.uut, ch, tt, len(chx[-1])*2/1000000/tt))
 
         return chx
@@ -531,7 +532,7 @@ class Acq400:
             nc.sock.shutdown(socket.SHUT_WR)
             rx = nc.sock.recv(4096) 
             if trace:
-                print("< {}".format(rx))            
+                print("< {}".format(rx))
 
         with netclient.Netclient(self.uut, AcqPorts.GPGDUMP) as nc: 
             while True:
@@ -561,7 +562,7 @@ class Acq400:
             nc.sock.shutdown(socket.SHUT_WR) 
             while True:
                 rx = nc.sock.recv(128)
-                if not rx or rx.startswith("DONE"):
+                if not rx or rx.startswith(b"DONE"):
                     break
             nc.sock.close()
 
@@ -592,7 +593,7 @@ class Acq400:
 
     def run_livetop(self):
         with netclient.Netclient(self.uut, AcqPorts.LIVETOP) as nc:
-            print(nc.receive_message(self.NL, 256))             
+            print(nc.receive_message(self.NL, 256))
             nc.sock.shutdown(socket.SHUT_RDWR)
             nc.sock.close()
 
@@ -607,12 +608,18 @@ class Acq2106(Acq400):
         print("Acq2106 %s" % (_uut))
         Acq400.__init__(self, _uut, monitor)
         site = 13
-        for sm in [ 'cA', 'cB']:                
-            self.svc[sm] = netclient.Siteclient(self.uut, AcqPorts.SITE0+site)
+        for sm in [ 'cA', 'cB']:
+            try:
+                self.svc[sm] = netclient.Siteclient(self.uut, AcqPorts.SITE0+site)
+            except socket.error:
+                print("uut {} site {} not populated".format(_uut, site))
             self.mod_count += 1
             site = site - 1
         if (has_mgtdram):
-            self.svc['s14'] = netclient.Siteclient(self.uut, AcqPorts.SITE0+14)
+            try:
+                self.svc['s14'] = netclient.Siteclient(self.uut, AcqPorts.SITE0+14)
+            except socket.error:
+                print("uut {} site {} not populated".format(_uut, site))            
 
     def set_mb_clk(self, hz=4000000, src="zclk", fin=1000000):
         Acq400.set_mb_clk(self, hz, src, fin)
@@ -656,7 +663,7 @@ def run_unit_test():
     print("POST SAMPLES %d" % uut.post_samples())
 
     for sx in sorted(uut.svc):
-        print("SITE:%s MODEL:%s" % (sx, uut.svc[sx].sr("MODEL")) )
+        print("SITE:%s MODEL:%s" % (sx, uut.svc[sx].sr("MODEL")))
 
 
 if __name__ == '__main__':
