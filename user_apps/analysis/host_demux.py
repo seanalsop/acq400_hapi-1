@@ -31,8 +31,13 @@ example usage::
     use of --src
         --src=/data                     # valid for FTP upload data
         --src=/data/ACQ400DATA/1 	# valid for SFP data, port 1
+        --src=afhba.0.log               # one big raw file, eg from LLC
 
-usage:: 
+    ./host_demux.py --nchan 128 --pchan 1,33,65,97 --src=/path-to/afhba.0.log acq2106_110
+    # plot data from LLC, 128 channels, show one "channel" from each site.
+    # 97 was actually the LSB of TLATCH.
+
+usage::
 
     host_demux.py [-h] [--nchan NCHAN] [--nblks NBLKS] [--save SAVE]
                      [--src SRC] [--pchan PCHAN]
@@ -53,7 +58,7 @@ optional arguments:
   --egu EGU      plot egu (V vs s)
   --xdt XDT      0: use interval from UUT, else specify interval
 
-    
+
 
 """
 
@@ -84,7 +89,7 @@ def create_npdata(args, nblk, nchn):
            channels.append(np.zeros(16, dtype=np.int16))
     # print "length of data = ", len(total_data)
     # print "npdata = ", npdata
-    return channels 
+    return channels
 
 
 def make_cycle_list(args):
@@ -131,10 +136,10 @@ def read_data(args):
         print(f)
     if NCHAN % 3 == 0:
         print("collect in groups of 3 to keep alignment")
-        GROUP = 3 
+        GROUP = 3
     else:
         GROUP = 1
-    
+
 
     if NSAM == 0:
         NSAM = GROUP*os.path.getsize(data_files[0])/WSIZE/NCHAN
@@ -146,7 +151,7 @@ def read_data(args):
         data_files = [ data_files[i] for i in range(0,NBLK) ]
 
     print("NBLK {} NBLK/GROUP {} NCHAN {}".format(NBLK, NBLK/GROUP, NCHAN))
-  
+
     raw_channels = create_npdata(args, NBLK/GROUP, NCHAN)
     blocks = 0
     i0 = 0
@@ -166,7 +171,7 @@ def read_data(args):
             iblock += 1
             if iblock < GROUP:
                 continue
-                
+
             i1 = i0 + NSAM
             for ch in range(NCHAN):
                 if channel_required(args, ch):
@@ -180,7 +185,18 @@ def read_data(args):
     print "length of data[0] = ", len(raw_channels[0])
     print "length of data[1] = ", len(raw_channels[1])
     return raw_channels
-    
+
+def read_data_file(args):
+    NCHAN = args.nchan
+    data = np.fromfile(args.src, dtype=np.int16)
+    nsam = len(data)/NCHAN
+    raw_channels = create_npdata(args, nsam, NCHAN)
+    for ch in range(NCHAN):
+        if channel_required(args, ch):
+            raw_channels[ch] = data[ch::NCHAN]
+
+    return raw_channels
+
 def save_data(args, raw_channels):
     subprocess.call(["mkdir", "-p", args.saveroot])
     for enum, channel in enumerate(raw_channels):
@@ -188,13 +204,15 @@ def save_data(args, raw_channels):
         channel.tofile(data_file, '')
 
     return raw_channels
-    
+
 
 def plot_data(args, raw_channels):
     client = pykst.Client("NumpyVector")
     llen = len(raw_channels[0])
     if args.egu == 1:
         if args.xdt == 0:
+            print "WARNING ##### NO CLOCK RATE PROVIDED. TIME SCALE measured by system."
+            raw_input("Please press enter if you want to continue with innacurate time base.")
             time1 = float(args.the_uut.s0.SIG_CLK_S1_FREQ.split(" ")[-1])
             xdata = np.linspace(0, llen/time1, num=llen)
         else:
@@ -213,20 +231,26 @@ def plot_data(args, raw_channels):
     for ch in [ int(c) for c in args.pc_list]:
         channel = raw_channels[ch]
         ch1 = ch+1
+        yu1 = yu
         if args.egu:
+            try:
             # chan2volts ch index from 1:
-            channel = args.the_uut.chan2volts(ch1, channel)
-        # label 1.. (human)
-        V2 = client.new_editable_vector(channel.astype(np.float64), name="CH{:02d}".format(ch1))
+                channel = args.the_uut.chan2volts(ch1, channel)
+            except IndexError:
+                yu1 = 'code'
+                print("ERROR: no calibration for CH{:02d}".format(ch1))
+
+        # label 1.. (human) 
+        V2 = client.new_editable_vector(channel.astype(np.float64), name="{}:CH{:02d}".format(re.sub(r"_", r"-", args.the_uut.uut), ch1))
         c1 = client.new_curve(V1, V2)
         p1 = client.new_plot()
-        p1.set_left_label(yu)
-        p1.set_bottom_label(xu)  
+        p1.set_left_label(yu1)
+        p1.set_bottom_label(xu)
         p1.add(c1)
 
 
 def process_data(args):
-    raw_data = read_data(args)
+    raw_data = read_data(args) if not os.path.isfile(args.src) else read_data_file(args)
     if args.save != None:
         save_data(args, raw_data)
     if len(args.pc_list) > 0:
@@ -244,8 +268,8 @@ def make_pc_list(args):
         x2 = args.nchan+1 if lr[1] == '' else int(lr[1])+1
         return list(range(x1, x2))
     else:
-        return args.pchan.split(',') 
-    
+        return args.pchan.split(',')
+
 def run_main():
     parser = argparse.ArgumentParser(description='host demux, host side data handling')
     parser.add_argument('--nchan', type=int, default=32)
@@ -258,9 +282,12 @@ def run_main():
     parser.add_argument('--xdt', type=float, default=0, help='0: use interval from UUT, else specify interval ')
     parser.add_argument('uut', nargs=1, help='uut')
     args = parser.parse_args()
-    args.uutroot = "{}/{}".format(args.src, args.uut[0])
-    print("uutroot {}".format(args.uutroot))
-    if args.save != None: 
+    if os.path.isdir(args.src):
+        args.uutroot = "{}/{}".format(args.src, args.uut[0])
+        print("uutroot {}".format(args.uutroot))
+    elif os.path.isfile(args.src):
+        args.uutroot = "{}".format(os.path.dirname(args.src))
+    if args.save != None:
         if args.save.startswith("/"):
             args.saveroot = args.save
         else:
