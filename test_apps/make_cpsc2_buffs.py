@@ -15,7 +15,7 @@ ENDBUF_MARK = 5
 
 
 def load_wf(args):
-    data = np.fromfile(args.datafile, dtype=np.int16)
+    data = np.fromfile(args.datafile, dtype=eval(args.datatype))
     return data
 
 
@@ -26,15 +26,17 @@ def chunks(l, n):
 
 
 def extend_to_n_bytes(args, data):
+    word_size = 2 if args.datatype == "np.int16" else 4
     final_data = []
     for index, buf in enumerate(data):
-        data_size = len(buf) * 2 # Data size in bytes
-        pad_samples = (args.size - data_size) / 2
+        data_size = len(buf) * word_size # Data size in bytes
+        pad_samples = (args.size - data_size) / word_size
+        print("Pad samples = ", pad_samples)
         chunk = np.append(buf, pad_samples * [ENDBUF_MARK]) # data is 1MB
         final_data.append(chunk)
         print("{} len:{} samples needed: {} data shape {}".
                 format(index, len(buf), pad_samples, np.shape(final_data)))
-    final_data = np.array(final_data).astype(np.int16)
+    final_data = np.array(final_data).astype(eval(args.datatype))
     return final_data
 
 
@@ -62,6 +64,9 @@ def run_main():
 
     parser.add_argument('--size', type=int, default=1048576,
     help='Size in bytes of the buffer size required.')
+
+    parser.add_argument('--datatype', type=str, default="np.int32",
+    help="16 or 32 bit data size.")
 
     args = parser.parse_args()
 
