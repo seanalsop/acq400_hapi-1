@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 
 
+"""
+This is a script used to analyse CPSC2 data.
+
+Usage:
+
+python3.6 cpsc2_test.py --data /home/sean/PROJECTS/workspace/cpsc2_data/small/bigrawlogfile2 --zoom 36000 36500
+"""
+
 from __future__ import print_function
 from future import builtins
 import argparse
@@ -152,7 +160,10 @@ def run_main():
     parser.add_argument('--stdin', default=0, type=int,
     help="Pull the data to be analysed from STDIN instead of a file.")
 
-    parser.add_argument('--zoom', default=[0, 'data[0].size'], nargs='+', type=int)
+    parser.add_argument('--zoom', default=[0, 'data[0].size'], nargs='+',
+    type=int, help="Allows the user to zoom into a portion of the data. To use \
+    the user must provide two numbers: --zoom 25000 35000. Default is whole \
+    dataset.")
 
     run_test(parser.parse_args())
 
