@@ -21,9 +21,9 @@ def get_data(args):
     data = np.fromfile(args.data, dtype=np.int32)
     # reshape the data to be an 64 x N matrix where i is 64 and j is N in
     # traditional matrix nomenclature. This means channels are rows.
-
     number_of_elements_to_remove = data.size % args.nchan
-    data = data[:-number_of_elements_to_remove] # Need to do this to reshape.
+    if number_of_elements_to_remove != 0:
+        data = data[:-number_of_elements_to_remove] # Need to do this to reshape.
 
     data = data.reshape((-1,args.nchan)).transpose()
     # Now we can access whole channels by doing: data[ch,0:] and access parts
