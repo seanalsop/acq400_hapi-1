@@ -66,6 +66,53 @@ def check_counters(data, skip_on_val="disable", skip_on_zero=0, col_name="x"):
             # exit()
 
 
+def swap_bits(data, index):
+    # swap the order of the two 8 bit integers in the top 16 bit word.
+    # col = data[index,0:]
+    byte_col = bytearray(data[index,0:])
+    byteswapped = byte_col
+    byteswapped[0::4] = byte_col[1::4]
+    byteswapped[1::4] = byte_col[0::4]
+    byteswapped[2::4] = byte_col[2::4]
+    byteswapped[3::4] = byte_col[3::4]
+
+    col = np.frombuffer(byteswapped, dtype=np.int32)
+
+    # for indice, sample in enumerate(col):
+    #
+    #     new_upper_8 = sample >> 16
+    #     new_upper_8 = new_upper_8 << 24
+    #
+    #     new_lower_8 = sample >> 24
+    #     new_lower_8 = new_lower_8 << 16
+    #
+    #     lower_16 = sample << 16
+    #     lower_16 = lower_16 >> 16
+    #
+    #     col[indice] = new_upper_8 + new_lower_8 + lower_16
+
+    data[index,0:] = col
+    return data
+
+
+def strip_ees(data, nchan):
+    before = data[32,0:]
+    for ch in list(range(0, nchan)):
+        col = data[ch,0:]
+        result = np.where(col != -0x11111112)
+        # pad the end of the array with zeros.
+        data[ch,0:] = np.pad(col[result], (0, len(col) - len(col[result])), 'constant')
+    after = data[32,0:]
+    print("Before = {}, after = {}, identical = {}".format(before, after, len(before) == (after==before).sum()))
+    return data
+
+
+def left_justify(data, nchan):
+    for col in [34, 35, 36, 37, 42, 43, 44, 45]:
+        for index, sample in enumerate(data[col,0:]):
+            data[col,0:][index] = sample << 12
+
+
 def analyse_data(data, args):
 
     sample_counter_col = 49-1
@@ -90,26 +137,32 @@ def plot_data(data, args):
     if args.zoom[1] == 'data[0].size':
         args.zoom[1] = eval(args.zoom[1])
 
-    f, plots = plt.subplots(3, 1)
+    f, plots = plt.subplots(4, 1)
+
+    for row in [1-1, 2-1]:
+        plots[0].plot(data[row,zoom[0]:zoom[1]])
+        plots[0].set_title("CPSC2 data columns 1 & 2")
+        plots[0].legend(('1', '2'))
+        plots[0].grid(True)
 
     for row in [33-1, 41-1]:
         # plots[0].plot(data[col::args.nchan])
-        plots[0].plot(data[row,zoom[0]:zoom[1]])
-        plots[0].set_title("CPSC2 data columns 33, 41")
-        plots[0].legend(('33', '41'))
-        plots[0].grid(True)
-
-    for row in [34-1, 35-1, 36-1, 37-1]:
         plots[1].plot(data[row,zoom[0]:zoom[1]])
-        plots[1].set_title("CPSC2 data columns 34, 35, 36, 37")
-        plots[1].legend(('34', '35', '36', '37'))
+        plots[1].set_title("CPSC2 data columns 33, 41")
+        plots[1].legend(('33', '41'))
         plots[1].grid(True)
 
-    for row in [42-1, 43-1, 44-1, 45-1]:
+    for row in [34-1, 35-1, 36-1, 37-1]:
         plots[2].plot(data[row,zoom[0]:zoom[1]])
-        plots[2].set_title("CPSC2 data columns 42, 43, 44, 45")
-        plots[2].legend(('42', '43', '44', '45'))
+        plots[2].set_title("CPSC2 data columns 34, 35, 36, 37")
+        plots[2].legend(('34', '35', '36', '37'))
         plots[2].grid(True)
+
+    for row in [42-1, 43-1, 44-1, 45-1]:
+        plots[3].plot(data[row,zoom[0]:zoom[1]])
+        plots[3].set_title("CPSC2 data columns 42, 43, 44, 45")
+        plots[3].legend(('42', '43', '44', '45'))
+        plots[3].grid(True)
 
     plt.grid(True)
     plt.show()
@@ -137,10 +190,17 @@ def run_test(args):
             data = get_data(args)
             analyse_data(data, args)
     data = get_data(args)
+
+    if args.swap == 1:
+        data = swap_bits(data, 33-1)
+
+    if args.strip == 1:
+        data = strip_ees(data, args.nchan)
+
     plot_data(data, args)
 
-    import code
-    code.interact(local=locals())
+    # import code
+    # code.interact(local=locals())
 
     return None
 
@@ -159,6 +219,15 @@ def run_main():
 
     parser.add_argument('--stdin', default=0, type=int,
     help="Pull the data to be analysed from STDIN instead of a file.")
+
+    parser.add_argument('--swap', default=0, type=int,
+    help="swap bytes in col 33")
+
+    parser.add_argument('--strip', default=0, type=int,
+    help="Strip eeeeeeee's")
+
+    parser.add_argument('--left_justify', default=0, type=int,
+    help="Whether or not to left justify the data columns.")
 
     parser.add_argument('--zoom', default=[0, 'data[0].size'], nargs='+',
     type=int, help="Allows the user to zoom into a portion of the data. To use \
