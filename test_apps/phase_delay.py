@@ -50,14 +50,14 @@ def run_test(args):
         ph_diff = np.angle(x1h/x2h)
         phase_diff = abs(ph_diff[0])
 
-    print "Phase difference in rads = ", phase_diff
+    print "Phase difference in rads: {:>13}".format(round(phase_diff, 4))
     #sec = phase_diff / (np.pi * args.fsig);
     degrees = phase_diff * (1/(np.pi / 180))
-    print "Phase difference in degrees = ", degrees
+    print "Phase difference in degrees: {:>10}".format(round(degrees, 4))
     #sec = phase_diff / (360 * args.fsig);
     sec = degrees / (360 * args.fsig);
-    print "Difference in seconds is ", sec
-    print "Difference as % of sample clock ", sec * 100 * args.s_clk
+    print "Difference in seconds:  {:>18}".format(round(sec, 8))
+    print "Difference as % of sample clock: {:>1}".format(round(sec * 100 * args.s_clk, 4))
 
 def run_main():
     parser = argparse.ArgumentParser(description = 'awg speed test')
