@@ -27,7 +27,7 @@ def main():
     parser.add_argument('uut', nargs=1, help="uut ")
     args = parser.parse_args()
 
-    path = args.uut[0] + "/"
+    path = "../user_apps/acq2106/" + args.uut[0] + "/"
     print("uut = {}".format(args.uut[0]))
     uut = acq400_hapi.Acq400(args.uut[0])
 
@@ -66,7 +66,7 @@ def main():
             try:
                 this_block = data[:,ch][val:zero_crossings_reduced[pos+1]]
             except Exception:
-                print("\n Finished.")
+                print("\n Finished channel: {}.".format(ch))
                 break
             test_block = data[:,ch][zero_crossings[20]:zero_crossings[20]+this_block.shape[-1]]
 
