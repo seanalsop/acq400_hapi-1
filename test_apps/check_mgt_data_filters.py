@@ -66,7 +66,7 @@ def main():
             try:
                 this_block = data[:,ch][val:zero_crossings_reduced[pos+1]]
             except Exception:
-                print("\n Finished channel: {}.".format(ch))
+                print("\n Finished channel: {}.".format(ch + 1))
                 break
             test_block = data[:,ch][zero_crossings[20]:zero_crossings[20]+this_block.shape[-1]]
 
