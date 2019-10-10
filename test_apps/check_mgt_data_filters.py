@@ -1,5 +1,18 @@
 #!/usr/bin/python3
 
+
+"""
+This script is intended to test a real data set on all channels of an acq2106
+fitted with an MGT-DRAM module. The data should be offloaded first and stored
+in the same directory created by mgtdramshot.py.
+
+The script compares zero crossings, so the less zero crossings there are in the
+data, the faster the algorithm will be able to validate the data.
+
+NB: This script loads ALL 8GB into RAM.
+"""
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 import acq400_hapi
