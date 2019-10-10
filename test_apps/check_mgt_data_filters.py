@@ -40,7 +40,7 @@ def main():
 
     data_length = int(np.fromfile(path+files[0], dtype=np.int16).shape[-1]/nchan)
     print("data_length = {}".format(data_length))
-    data = np.zeros((data_length*2000, nchan), dtype=np.int16)
+    data = np.zeros((data_length*len(files), nchan), dtype=np.int16)
     print("shape of data = {}".format(data.shape))
 
 
