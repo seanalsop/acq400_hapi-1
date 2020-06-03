@@ -93,7 +93,7 @@ def run_stream(args):
     file_num = 0
 
     skt = socket.socket()
-    skt.connect((args.uuts[0], 4210))
+    skt.connect((args.uuts[0], args.port))
     make_data_dir(root, args.verbose)
     start_time = time.time()
     data_length = 0
@@ -140,6 +140,7 @@ def run_main():
     parser.add_argument('--root', default="", type=str, help="Location to save files. Default dir is UUT name.")
     parser.add_argument('--runtime', default=sys.maxsize, type=int, help="How long to stream data for")
     parser.add_argument('--verbose', default=0, type=int, help='Prints status messages as the stream is running')
+    parser.add_argument('--port', default=4210, type=int, help='Which port to connect to. Default is 4210.')
     parser.add_argument('uuts', nargs='+', help="uuts")
     run_stream(parser.parse_args())
 
